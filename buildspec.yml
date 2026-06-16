@@ -7,19 +7,21 @@ version: 0.2
 # Actions:
 #   1. Log in to ECR
 #   2. docker build
-#   3. Tag with: latest  +  $CODEBUILD_RESOLVED_SOURCE_VERSION (commit SHA)
-#   4. Push both tags to ECR
+#   3. Tag with Git commit SHA only (ECR uses IMMUTABLE tags — :latest not pushed)
+#   4. Push SHA-tagged image to ECR
 #
-# Environment variables injected by CodeBuild / CodePipeline:
-#   AWS_DEFAULT_REGION     — set automatically by CodeBuild
-#   AWS_ACCOUNT_ID         — set in CodeBuild Environment Variables
-#   ECR_REPOSITORY_NAME    — set in CodeBuild Environment Variables (quralyst-backend-dev)
+# The imageDetail.json artifact carries the full image URI to CodeDeploy.
+# start_container.sh re-tags as local :latest for docker compose reference.
+#
+# Environment variables injected by CodeBuild project:
+#   AWS_DEFAULT_REGION     — set in CodeBuild project env vars
+#   AWS_ACCOUNT_ID         — set in CodeBuild project env vars
+#   ECR_REPOSITORY_NAME    — set in CodeBuild project env vars (quralyst-backend-dev)
 # =============================================================================
 
 env:
   variables:
     ECR_REPOSITORY_NAME: "quralyst-backend-dev"
-    IMAGE_TAG_LATEST: "latest"
 
 phases:
   pre_build:
@@ -38,16 +40,15 @@ phases:
     commands:
       - echo "=== Build: Building Docker image ==="
       - echo "Build started at $(date)"
-      - docker build -t $IMAGE_URI:$IMAGE_TAG_LATEST -t $IMAGE_URI:$COMMIT_SHA .
+      - docker build -t $IMAGE_URI:$COMMIT_SHA .
       - echo "=== Build complete ==="
 
   post_build:
     commands:
-      - echo "=== Post-Build: Pushing images to ECR ==="
-      - docker push $IMAGE_URI:$IMAGE_TAG_LATEST
+      - echo "=== Post-Build: Pushing image to ECR ==="
       - docker push $IMAGE_URI:$COMMIT_SHA
-      - echo "=== Images pushed successfully ==="
-      # Write imageDetail.json for CodeDeploy ECS / EC2 artifact handoff
+      - echo "=== Image pushed: $IMAGE_URI:$COMMIT_SHA ==="
+      # Write imageDetail.json — consumed by CodeDeploy start_container.sh
       - printf '{"ImageURI":"%s"}' "$IMAGE_URI:$COMMIT_SHA" > imageDetail.json
       - cat imageDetail.json
       - echo "=== Post-build complete at $(date) ==="
@@ -57,6 +58,7 @@ artifacts:
     - imageDetail.json
     - appspec.yml
     - scripts/**/*
+    - docker-compose.yml
   discard-paths: no
 
 cache:
