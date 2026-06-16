@@ -1,0 +1,64 @@
+version: 0.2
+
+# =============================================================================
+# Quralyst Backend — AWS CodeBuild buildspec
+# =============================================================================
+# Triggered by: CodePipeline on merge to master
+# Actions:
+#   1. Log in to ECR
+#   2. docker build
+#   3. Tag with: latest  +  $CODEBUILD_RESOLVED_SOURCE_VERSION (commit SHA)
+#   4. Push both tags to ECR
+#
+# Environment variables injected by CodeBuild / CodePipeline:
+#   AWS_DEFAULT_REGION     — set automatically by CodeBuild
+#   AWS_ACCOUNT_ID         — set in CodeBuild Environment Variables
+#   ECR_REPOSITORY_NAME    — set in CodeBuild Environment Variables (quralyst-backend-dev)
+# =============================================================================
+
+env:
+  variables:
+    ECR_REPOSITORY_NAME: "quralyst-backend-dev"
+    IMAGE_TAG_LATEST: "latest"
+
+phases:
+  pre_build:
+    commands:
+      - echo "=== Pre-Build: Logging into Amazon ECR ==="
+      - ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+      - IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY_NAME}"
+      - COMMIT_SHA=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c1-8)
+      - echo "ECR Registry  -> $ECR_REGISTRY"
+      - echo "Image URI     -> $IMAGE_URI"
+      - echo "Commit SHA    -> $COMMIT_SHA"
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+      - echo "=== ECR Login successful ==="
+
+  build:
+    commands:
+      - echo "=== Build: Building Docker image ==="
+      - echo "Build started at $(date)"
+      - docker build -t $IMAGE_URI:$IMAGE_TAG_LATEST -t $IMAGE_URI:$COMMIT_SHA .
+      - echo "=== Build complete ==="
+
+  post_build:
+    commands:
+      - echo "=== Post-Build: Pushing images to ECR ==="
+      - docker push $IMAGE_URI:$IMAGE_TAG_LATEST
+      - docker push $IMAGE_URI:$COMMIT_SHA
+      - echo "=== Images pushed successfully ==="
+      # Write imageDetail.json for CodeDeploy ECS / EC2 artifact handoff
+      - printf '{"ImageURI":"%s"}' "$IMAGE_URI:$COMMIT_SHA" > imageDetail.json
+      - cat imageDetail.json
+      - echo "=== Post-build complete at $(date) ==="
+
+artifacts:
+  files:
+    - imageDetail.json
+    - appspec.yml
+    - scripts/**/*
+  discard-paths: no
+
+cache:
+  paths:
+    - "/root/.docker/**/*"

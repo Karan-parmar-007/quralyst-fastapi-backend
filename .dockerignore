@@ -1,0 +1,79 @@
+# =============================================================================
+# Quralyst FastAPI Backend — .dockerignore
+# Excludes everything that must NOT be baked into the production image.
+# =============================================================================
+
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python caches and compiled artefacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+
+# Type checkers & linters
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+.pytype/
+.pyre/
+
+# Secrets — NEVER bake .env into an image
+.env
+.envrc
+*.env
+
+# Git
+.git/
+.gitignore
+
+# IDE / editor files
+.idea/
+.vscode/
+.cursor/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Docker files themselves (not needed inside the image)
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Documentation & governance files (not needed at runtime)
+task.md
+README.md
+CLAUDE.md
+*.md
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Logs
+*.log
+logs/
