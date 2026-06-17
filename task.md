@@ -5,13 +5,14 @@
 
 ---
 
-## Governance Rules
+## Governance Rules (Mandatory PR Workflow)
 
-- Never work directly on `master`. Always feature branch → PR → review → merge.
-- All completed tasks must be logged here immediately.
-- No application logic changes — infrastructure only.
-- Do NOT merge PRs without approval.
-- CI/CD triggers on `master` branch only.
+1. **Never Push Directly**: Never push directly to `master`. Always create a new feature branch.
+2. **Never Create a Pull Request Automatically**: Do NOT create the Pull Request on GitHub. Instead, after pushing the feature branch, provide the GitHub Compare/Create Pull Request link (e.g., `https://github.com/<owner>/<repo>/compare/master...feature-branch?expand=1`).
+3. **I Will Create the Pull Request**: Only provide the feature branch name, commit SHA, PR link, short title, and short description (max 2-3 lines). The user will create, review, and merge the PR.
+4. **Never Merge**: Never merge the Pull Request or delete the feature branch.
+5. **Documentation**: Record every completed task in `task.md`, including Task ID, files changed, feature branch name, commit SHA, Compare/Create Pull Request link, and validation results.
+6. **This Rule Is Permanent**: Must be followed for every future task.
 
 ---
 
