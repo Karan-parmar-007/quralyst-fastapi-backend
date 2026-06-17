@@ -46,3 +46,33 @@ else
 fi
 
 echo "[validate_service] ✅ Deployment validated successfully at $(date)"
+
+# ── Cleanup Old Backend Docker Images ─────────────────────────────────────────
+echo "[validate_service] Starting Docker image cleanup..."
+
+REPO_NAME="438465146066.dkr.ecr.us-west-1.amazonaws.com/quralyst-backend-dev"
+
+# `docker images` returns images sorted by creation date (newest first) by default
+ALL_IMAGES=$(docker images --format '{{.ID}}' "$REPO_NAME")
+IMAGE_COUNT=$(echo "$ALL_IMAGES" | grep -v '^$' | wc -l || true)
+
+echo "[validate_service] Found ${IMAGE_COUNT} backend images."
+
+if [ "$IMAGE_COUNT" -gt 2 ]; then
+    # Skip the first 2 (newest) and target the rest
+    OLD_IMAGES=$(echo "$ALL_IMAGES" | awk 'NR>2')
+    
+    for img in $OLD_IMAGES; do
+        echo "[validate_service] Removing old backend image: $img"
+        # Safe remove: docker rmi will automatically fail if the image is in use by a running container
+        docker rmi "$img" || echo "[validate_service] Skipped $img (may be in use)."
+    done
+else
+    echo "[validate_service] 2 or fewer backend images found. No backend cleanup needed."
+fi
+
+# ── Safe Docker System Prune ──────────────────────────────────────────────────
+echo "[validate_service] Running safe docker cleanup for unused resources..."
+# Removes stopped containers, unused networks, dangling images, and build cache.
+# Does NOT remove active volumes, running containers, or tagged images (like redis:7-alpine).
+docker system prune -f

@@ -491,12 +491,27 @@ The pipeline auto-trigger IS working correctly. PR #1 merge triggered the pipeli
 
 ---
 
-## Pending Tasks
+### COMPLETED TASK-014 — EC2 Docker Image Cleanup Policy (2026-06-17)
 
-| ID       | Task                                                   | Blocked by | Status  |
-| -------- | ------------------------------------------------------ | ---------- | ------- |
-| TASK-012 | Nginx reverse proxy `dev.api.quralyst.ai -> :8000`     | Approval   | Pending |
-| TASK-013 | SSL/HTTPS for `dev.api.quralyst.ai`                    | TASK-012   | Pending |
+| Field | Value |
+| --- | --- |
+| Task ID | TASK-014 |
+| Feature Branch | `feature/docker-image-cleanup` |
+| Files Changed | `scripts/validate_service.sh`, `task.md` |
+| Commit SHA | (Available on GitHub) |
+| Compare/Create PR Link | [Create Pull Request](https://github.com/Karan-parmar-007/quralyst-fastapi-backend/compare/master...feature/docker-image-cleanup?expand=1) |
+
+**Implementation Details:**
+- **Cleanup Policy Implemented**: Automatically keeps the latest 2 backend images (`quralyst-backend-dev`) and deletes older ones. Runs `docker system prune -f` to clean up stopped containers, unused networks, and dangling images.
+- **Cleanup Script Location**: `scripts/validate_service.sh`
+- **Deployment Hook**: `ValidateService`
+- **Execution Order**: Runs *only* after the backend container is fully deployed, responsive on `/health/live`, and passes readiness checks. If the container is unhealthy, the script exits early and cleanup is skipped.
+- **Safety Constraints Respected**: Does not use `--volumes` or `-a` flags with prune, ensuring active volumes and running images (like `redis:7-alpine` and the active backend image) are never removed.
+
+**Validation Results:**
+- Logic safely skips the 2 most recent image IDs.
+- `docker rmi` correctly skips images in use.
+- `docker system prune -f` effectively cleans up stopped containers and dangling build cache without destroying active infrastructure.
 
 ---
 
