@@ -27,7 +27,7 @@ phases:
   post_build:
     commands:
       - echo "Post-Build - Pushing image to ECR"
-      - docker push "$IMAGE_URI:$COMMIT_SHA"
+      - aws ecr describe-images --repository-name $ECR_REPOSITORY_NAME --image-ids imageTag=$COMMIT_SHA > /dev/null 2>&1 || docker push "$IMAGE_URI:$COMMIT_SHA"
       - echo "Image pushed $IMAGE_URI:$COMMIT_SHA"
       - printf '{"ImageURI":"%s"}' "$IMAGE_URI:$COMMIT_SHA" | tee imageDetail.json
       - echo ""
