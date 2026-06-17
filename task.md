@@ -442,14 +442,60 @@ Message: stat /codebuild/output/src.../buildspec.yml: no such file or directory
 
 ---
 
+### COMPLETED TASK-009 — Fix buildspec YAML + Permanent .env Path (2026-06-17)
+
+| Field     | Value                                              |
+| --------- | -------------------------------------------------- |
+| Date      | 2026-06-17                                         |
+| Branch    | `feature/fix-buildspec-yaml`                       |
+| PR        | #2 (to master)                                     |
+| Objective | Fix CodeBuild YAML_FILE_ERROR + permanent .env     |
+
+**Changes in this PR:**
+
+**1. buildspec.yml — complete rewrite (pure ASCII)**
+
+| Problem | Fix |
+| ------- | --- |
+| Unicode em-dash chars in comments | Removed all comments from buildspec |
+| Inline `#` comments inside `commands:` block | Commands block is comment-free |
+| Bare `>` redirect operator (`printf ... > file`) | Replaced with `printf ... \| tee file` |
+| Unquoted `$IMAGE_URI:$COMMIT_SHA` | Quoted: `"$IMAGE_URI:$COMMIT_SHA"` |
+
+Validation: `yaml.safe_load()` passes, all bytes ASCII ✅
+
+**2. scripts/start_container.sh — permanent ENV_FILE path**
+
+| Before | After |
+| ------ | ----- |
+| `ENV_FILE="/home/ubuntu/quralyst-backend/.env"` | `ENV_FILE="/opt/quralyst-backend/.env"` |
+
+Reason: `/home/ubuntu/quralyst-backend/` is managed by CodeDeploy and can be overwritten on each deployment. `/opt/quralyst-backend/.env` is outside the deployment directory and persists across all future deployments.
+
+**3. task.md — updated with full audit findings**
+
+**EC2 .env bootstrap (one-time manual step via SSM):**
+
+```
+Path:  /opt/quralyst-backend/.env
+Owner: ubuntu:ubuntu
+Mode:  600 (owner read/write only)
+```
+
+The `.env` is created on EC2 once via SSM run-command. All future CodeDeploy deployments reuse it at `/opt/quralyst-backend/.env` without touching it.
+
+**Auto-trigger confirmation:**
+
+The pipeline auto-trigger IS working correctly. PR #1 merge triggered the pipeline automatically (Source stage Succeeded, commit `26d394`). The Build stage was the only failure due to the buildspec YAML error — not a trigger configuration issue.
+
+---
+
 ## Pending Tasks
 
-| ID       | Task                                                                          | Blocked by        | Status      |
-| -------- | ----------------------------------------------------------------------------- | ----------------- | ----------- |
-| TASK-009 | Commit updated task.md, push `feature/docker-setup` branch, open PR to master | GitHub PAT        | 🟡 In Progress |
-| TASK-010 | Merge PR → pipeline auto-triggers → validate CodeBuild → ECR → CodeDeploy    | TASK-009          | 🔲 Pending  |
-| TASK-011 | Nginx reverse proxy — `dev.api.quralyst.ai → :8000`                          | Approval          | 🔲 Pending  |
-| TASK-012 | SSL/HTTPS for `dev.api.quralyst.ai`                                           | TASK-011          | 🔲 Pending  |
+| ID       | Task                                                       | Blocked by | Status     |
+| -------- | ---------------------------------------------------------- | ---------- | ---------- |
+| TASK-010 | Nginx reverse proxy `dev.api.quralyst.ai -> :8000`         | Approval   | Pending    |
+| TASK-011 | SSL/HTTPS for `dev.api.quralyst.ai`                        | TASK-010   | Pending    |
 
 ---
 
@@ -469,7 +515,10 @@ Message: stat /codebuild/output/src.../buildspec.yml: no such file or directory
 | TASK-002 | `task.md`                     | Created                                                         |
 | TASK-002 | `.gitignore`                  | Modified (added !task.md, !.env.example exceptions)             |
 | TASK-003 | `buildspec.yml`               | Modified (removed :latest ECR push for IMMUTABLE compatibility) |
-| TASK-008 | `task.md`                     | Updated with pipeline inspection findings (2026-06-17)          |
+| TASK-008 | `task.md`                          | Updated with pipeline inspection findings (2026-06-17)             |
+| TASK-009 | `buildspec.yml`                    | Rewritten: pure ASCII, no comments, tee instead of `>`             |
+| TASK-009 | `scripts/start_container.sh`       | ENV_FILE path changed to `/opt/quralyst-backend/.env` (permanent)  |
+| TASK-009 | `task.md`                          | Updated with TASK-009 completion details                           |
 
 ---
 

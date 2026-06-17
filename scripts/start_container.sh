@@ -9,7 +9,10 @@
 set -euo pipefail
 
 DEPLOY_DIR="/home/ubuntu/quralyst-backend"
-ENV_FILE="/home/ubuntu/quralyst-backend/.env"
+# ENV_FILE lives outside the deployment directory so it is NEVER overwritten by CodeDeploy.
+# It must be placed manually on first bootstrap: /opt/quralyst-backend/.env
+# All subsequent deployments will reuse this file as-is.
+ENV_FILE="/opt/quralyst-backend/.env"
 IMAGE_DETAIL="${DEPLOY_DIR}/imageDetail.json"
 
 echo "[start_container] Starting at $(date)"
