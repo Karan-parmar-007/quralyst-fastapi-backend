@@ -499,6 +499,49 @@ The pipeline auto-trigger IS working correctly. PR #1 merge triggered the pipeli
 
 ---
 
+### COMPLETED TASK-012 — Root Cause Analysis: Pipeline Not Triggering on Merge (2026-06-17)
+
+| Field     | Value                                                          |
+| --------- | -------------------------------------------------------------- |
+| Date      | 2026-06-17                                                     |
+| Objective | RCA for AWS CodePipeline not triggering automatically on merge |
+
+**Investigation Findings:**
+
+1. **Execution History Audit**: 
+   - CodePipeline has **never** triggered automatically from a GitHub merge event.
+   - Every historical execution has the trigger type `CreatePipeline` (triggered automatically when the pipeline is created/updated) or `StartPipelineExecution` (manual trigger).
+2. **Repository Visibility**: 
+   - `Karan-parmar-007/quralyst-fastapi-backend` is a **public repository**.
+3. **AWS CodeConnections Limitations**: 
+   - The pipeline uses `CodeStarSourceConnection` via the connection named `indago-research`.
+   - `CodeStarSourceConnection` does **not** support polling (in both V1 and V2 pipelines). It relies 100% on a webhook managed by the "AWS Connector for GitHub" App.
+4. **The Root Cause**: 
+   - The AWS CodeConnections GitHub App is authorized for the `indago-research` account, but it is **NOT installed on the `Karan-parmar-007` account**.
+   - Because the repo is public, CodePipeline can successfully *read/clone* the source code when manually triggered.
+   - However, because the AWS GitHub App is not installed on `Karan-parmar-007`, AWS **does not have permission to register the necessary webhooks** on the repository.
+   - Therefore, GitHub never notifies AWS when a Pull Request is merged into `master`.
+
+**Validation of Symptoms:**
+- You observed that "sometimes it triggers." In reality, those triggers coincided exactly with pipeline creations/updates (`CreatePipeline` trigger type), which fetches the latest commit. Normal merges were completely ignored by AWS because no webhook exists.
+- The GitHub PAT provided lacks `admin:repo_hook` permissions (returns 404), confirming we cannot manually spoof the webhook either.
+
+**How to Implement the Permanent Fix:**
+Since this requires OAuth authorization, it must be done by you in the AWS/GitHub UI. No AWS resources need to be recreated.
+
+**Option A (AWS Recommended): Install the GitHub App**
+1. Go to AWS Console -> Developer Tools -> Settings -> Connections.
+2. Select the `indago-research` connection and click "Update pending connection" (or create a new connection).
+3. When prompted by GitHub, choose to install the AWS Connector app on the `Karan-parmar-007` account (or specifically the `quralyst-fastapi-backend` repository).
+4. Once authorized, AWS will automatically register the webhook, and merges will trigger the pipeline instantly.
+
+**Option B (GitHub Actions Workaround):**
+If you cannot install the GitHub app on that account:
+1. Add AWS credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`) as GitHub repository secrets.
+2. We can create a GitHub Actions workflow (`.github/workflows/deploy.yml`) that runs on push to `master` and executes `aws codepipeline start-pipeline-execution --name quralyst-backend-dev-pipeline`.
+
+---
+
 ### COMPLETED TASK-011 — Fix Backend Docker Push Failure (2026-06-17)
 
 | Field     | Value                                                          |
