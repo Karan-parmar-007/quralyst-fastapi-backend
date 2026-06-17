@@ -1,18 +1,6 @@
 version: 0.0
 os: linux
-
-# =============================================================================
-# Quralyst Backend — AWS CodeDeploy appspec.yml
-# =============================================================================
-# Deployment target : Development EC2 (i-06e3f585b2d4d1d4c)
-# Lifecycle hooks   :
-#   BeforeInstall     -> stop_container.sh
-#   AfterInstall      -> start_container.sh
-#   ValidateService   -> validate_service.sh
-#
-# Automatic rollback is enabled in the CodeDeploy Deployment Group settings
-# (DEPLOYMENT_FAILURE + DEPLOYMENT_STOP_ON_ALARM).
-# =============================================================================
+file_exists_behavior: OVERWRITE
 
 files:
   - source: scripts/
