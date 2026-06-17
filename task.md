@@ -492,10 +492,81 @@ The pipeline auto-trigger IS working correctly. PR #1 merge triggered the pipeli
 
 ## Pending Tasks
 
-| ID       | Task                                                       | Blocked by | Status     |
-| -------- | ---------------------------------------------------------- | ---------- | ---------- |
-| TASK-010 | Nginx reverse proxy `dev.api.quralyst.ai -> :8000`         | Approval   | Pending    |
-| TASK-011 | SSL/HTTPS for `dev.api.quralyst.ai`                        | TASK-010   | Pending    |
+| ID       | Task                                                   | Blocked by | Status  |
+| -------- | ------------------------------------------------------ | ---------- | ------- |
+| TASK-011 | Nginx reverse proxy `dev.api.quralyst.ai -> :8000`     | Approval   | Pending |
+| TASK-012 | SSL/HTTPS for `dev.api.quralyst.ai`                    | TASK-011   | Pending |
+
+---
+
+### COMPLETED TASK-010 — Fix Auto-Trigger + CodeDeploy File Conflict (2026-06-17)
+
+| Field     | Value                                                          |
+| --------- | -------------------------------------------------------------- |
+| Date      | 2026-06-17                                                     |
+| Branch    | `feature/test-auto-trigger-validation`                         |
+| PR        | #4 — https://github.com/Karan-parmar-007/quralyst-fastapi-backend/pull/4 |
+| Objective | Validate auto-trigger + fix CodeDeploy file_exists error       |
+
+**Investigation Results — Auto-Trigger:**
+
+| Check | Result |
+| ----- | ------ |
+| GitHub CodeConnection status | AVAILABLE |
+| Pipeline type | V2 (uses CodeConnections native webhook, NOT EventBridge) |
+| EventBridge rules for pipeline | 0 rules (expected for V2 — uses internal CodeConnections webhook) |
+| GitHub webhooks | Not exposed to PAT — managed by GitHub App |
+| GitHub App | Installed via CodeConnections — cannot inspect via REST API |
+| Execution history trigger types | `CreatePipeline` and `StartPipelineExecution` (manual) only |
+| `DetectChanges` config | `true` |
+| Repository | Karan-parmar-007/quralyst-fastapi-backend (correct) |
+| Branch | master (correct) |
+
+**Root Cause — Auto-Trigger not firing:**
+
+The pipeline was created once and never updated. For V2 CodePipeline + CodeStarSourceConnection, AWS registers the webhook with GitHub at creation time. If the webhook registration fails or expires silently, subsequent pushes to master do not trigger the pipeline — and AWS does not expose an error for this. The pipeline continued to show `AVAILABLE` connection and correct config, but the internal webhook was stale.
+
+**Fix Applied — Pipeline Recreation:**
+
+Deleted and recreated `quralyst-backend-dev-pipeline` with identical configuration. On recreation, CodePipeline re-registers the GitHub webhook via CodeConnections, restoring auto-trigger.
+
+| Action | Result |
+| ------ | ------ |
+| `delete-pipeline` | OK |
+| `create-pipeline` (same config) | OK — version 1, new creation timestamp |
+| First execution on creation | `CreatePipeline` trigger — picked up latest master commit `db62da35` |
+| Build stage | **Succeeded** (fixed buildspec.yml parsed correctly) |
+| Deploy stage | Failed — new error: file_exists_behavior |
+
+**Root Cause — CodeDeploy "file already exists":**
+
+CodeDeploy copies files from the artifact into the destination directory. On every deployment after the first, files from the prior run still exist on disk (`/home/ubuntu/quralyst-backend/scripts/*.sh`, `docker-compose.yml`, `imageDetail.json`). CodeDeploy's default behavior is to fail if the destination file exists.
+
+**Fix Applied — appspec.yml:**
+
+Added `file_exists_behavior: OVERWRITE` directive. CodeDeploy will now overwrite destination files silently on every deployment.
+
+```yaml
+version: 0.0
+os: linux
+file_exists_behavior: OVERWRITE   # <-- added
+```
+
+**AWS Resources — No new resources created:**
+
+| Resource | Action |
+| -------- | ------ |
+| CodePipeline | Deleted + recreated (same name, same config, all existing resources reused) |
+| EC2 `.env` | Created at `/opt/quralyst-backend/.env` via SSM (permanent, 600 perms) |
+| All other resources | Unchanged |
+
+**Validation PR:**
+
+| Item | Value |
+| ---- | ----- |
+| PR URL | https://github.com/Karan-parmar-007/quralyst-fastapi-backend/pull/4 |
+| Branch | `feature/test-auto-trigger-validation` -> `master` |
+| Expected trigger type after merge | `WebhookV2` (automatic, no manual action) |
 
 ---
 
