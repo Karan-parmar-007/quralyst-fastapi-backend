@@ -1,0 +1,114 @@
+# =============================================================================
+# Quralyst FastAPI Backend — docker-compose.yml
+# =============================================================================
+# Usage (local / EC2 dev):
+#   docker compose up --build -d
+#
+# Environment:
+#   Create a .env file in this directory (see .env.example) — it is loaded
+#   automatically by Compose via the `env_file` directive.
+#
+# Services:
+#   backend  — FastAPI application (port 8000)
+#   redis    — Redis 7 (port 6379, internal only)
+#
+# MongoDB Atlas is an external managed service; its URI is supplied via .env.
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # FastAPI Backend
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: quralyst-backend:latest
+    container_name: quralyst-backend
+    restart: unless-stopped
+
+    # Load ALL env vars from the .env file — secrets stay out of this file.
+    env_file:
+      - .env
+
+    # Allow individual overrides at deploy time without rebuilding the image.
+    environment:
+      PORT: "8000"
+
+    ports:
+      - "8000:8000"
+
+    depends_on:
+      redis:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+    networks:
+      - quralyst-net
+
+    # Minimal resource limits — tune for t3.large (2 vCPU / 8 GB RAM)
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "512M"
+        reservations:
+          cpus: "0.25"
+          memory: "128M"
+
+  # ---------------------------------------------------------------------------
+  # Redis (cache / session store)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: quralyst-redis
+    restart: unless-stopped
+
+    # Persist data across restarts
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+
+    volumes:
+      - redis_data:/data
+
+    # Redis is NOT exposed to the host — only the backend talks to it.
+    expose:
+      - "6379"
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    networks:
+      - quralyst-net
+
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: "192M"
+        reservations:
+          cpus: "0.05"
+          memory: "64M"
+
+# =============================================================================
+# Named volumes
+# =============================================================================
+volumes:
+  redis_data:
+    driver: local
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  quralyst-net:
+    driver: bridge

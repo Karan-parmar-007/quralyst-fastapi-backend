@@ -208,3 +208,14 @@ dbenv.txt
 CLAUDE.md
 .cursor
 .vscode/
+
+#md files (exclude governance and template files from the wildcard)
+*.md
+!task.md
+!README.md
+
+# Safe env template — must be committed
+!.env.example
+
+#aws ec2 pem keys
+*.pem

@@ -1,0 +1,66 @@
+version: 0.2
+
+# =============================================================================
+# Quralyst Backend — AWS CodeBuild buildspec
+# =============================================================================
+# Triggered by: CodePipeline on merge to master
+# Actions:
+#   1. Log in to ECR
+#   2. docker build
+#   3. Tag with Git commit SHA only (ECR uses IMMUTABLE tags — :latest not pushed)
+#   4. Push SHA-tagged image to ECR
+#
+# The imageDetail.json artifact carries the full image URI to CodeDeploy.
+# start_container.sh re-tags as local :latest for docker compose reference.
+#
+# Environment variables injected by CodeBuild project:
+#   AWS_DEFAULT_REGION     — set in CodeBuild project env vars
+#   AWS_ACCOUNT_ID         — set in CodeBuild project env vars
+#   ECR_REPOSITORY_NAME    — set in CodeBuild project env vars (quralyst-backend-dev)
+# =============================================================================
+
+env:
+  variables:
+    ECR_REPOSITORY_NAME: "quralyst-backend-dev"
+
+phases:
+  pre_build:
+    commands:
+      - echo "=== Pre-Build: Logging into Amazon ECR ==="
+      - ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+      - IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY_NAME}"
+      - COMMIT_SHA=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c1-8)
+      - echo "ECR Registry  -> $ECR_REGISTRY"
+      - echo "Image URI     -> $IMAGE_URI"
+      - echo "Commit SHA    -> $COMMIT_SHA"
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+      - echo "=== ECR Login successful ==="
+
+  build:
+    commands:
+      - echo "=== Build: Building Docker image ==="
+      - echo "Build started at $(date)"
+      - docker build -t $IMAGE_URI:$COMMIT_SHA .
+      - echo "=== Build complete ==="
+
+  post_build:
+    commands:
+      - echo "=== Post-Build: Pushing image to ECR ==="
+      - docker push $IMAGE_URI:$COMMIT_SHA
+      - echo "=== Image pushed: $IMAGE_URI:$COMMIT_SHA ==="
+      # Write imageDetail.json — consumed by CodeDeploy start_container.sh
+      - printf '{"ImageURI":"%s"}' "$IMAGE_URI:$COMMIT_SHA" > imageDetail.json
+      - cat imageDetail.json
+      - echo "=== Post-build complete at $(date) ==="
+
+artifacts:
+  files:
+    - imageDetail.json
+    - appspec.yml
+    - scripts/**/*
+    - docker-compose.yml
+  discard-paths: no
+
+cache:
+  paths:
+    - "/root/.docker/**/*"

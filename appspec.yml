@@ -1,0 +1,48 @@
+version: 0.0
+os: linux
+
+# =============================================================================
+# Quralyst Backend — AWS CodeDeploy appspec.yml
+# =============================================================================
+# Deployment target : Development EC2 (i-06e3f585b2d4d1d4c)
+# Lifecycle hooks   :
+#   BeforeInstall     -> stop_container.sh
+#   AfterInstall      -> start_container.sh
+#   ValidateService   -> validate_service.sh
+#
+# Automatic rollback is enabled in the CodeDeploy Deployment Group settings
+# (DEPLOYMENT_FAILURE + DEPLOYMENT_STOP_ON_ALARM).
+# =============================================================================
+
+files:
+  - source: scripts/
+    destination: /home/ubuntu/quralyst-backend/scripts/
+  - source: docker-compose.yml
+    destination: /home/ubuntu/quralyst-backend/
+  - source: imageDetail.json
+    destination: /home/ubuntu/quralyst-backend/
+
+permissions:
+  - object: /home/ubuntu/quralyst-backend/scripts/
+    pattern: "**"
+    owner: ubuntu
+    group: ubuntu
+    mode: 755
+    type:
+      - file
+
+hooks:
+  BeforeInstall:
+    - location: scripts/stop_container.sh
+      timeout: 60
+      runas: ubuntu
+
+  AfterInstall:
+    - location: scripts/start_container.sh
+      timeout: 120
+      runas: ubuntu
+
+  ValidateService:
+    - location: scripts/validate_service.sh
+      timeout: 60
+      runas: ubuntu
