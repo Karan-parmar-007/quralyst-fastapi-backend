@@ -494,8 +494,37 @@ The pipeline auto-trigger IS working correctly. PR #1 merge triggered the pipeli
 
 | ID       | Task                                                   | Blocked by | Status  |
 | -------- | ------------------------------------------------------ | ---------- | ------- |
-| TASK-011 | Nginx reverse proxy `dev.api.quralyst.ai -> :8000`     | Approval   | Pending |
-| TASK-012 | SSL/HTTPS for `dev.api.quralyst.ai`                    | TASK-011   | Pending |
+| TASK-012 | Nginx reverse proxy `dev.api.quralyst.ai -> :8000`     | Approval   | Pending |
+| TASK-013 | SSL/HTTPS for `dev.api.quralyst.ai`                    | TASK-012   | Pending |
+
+---
+
+### COMPLETED TASK-011 — Fix Backend Docker Push Failure (2026-06-17)
+
+| Field     | Value                                                          |
+| --------- | -------------------------------------------------------------- |
+| Date      | 2026-06-17                                                     |
+| Branch    | `feature/fix-docker-push-immutable-tag`                        |
+| PR        | (Pending)                                                      |
+| Objective | Fix ECR tag immutability error during CodeBuild POST_BUILD     |
+
+**Investigation Results:**
+- **CodeBuild Log Analysis**: The `BUILD` phase successfully created the docker image. The `POST_BUILD` phase failed with `tag invalid: The image tag 'c98be95e' already exists... tag is immutable`.
+- **Root Cause**: The ECR repository `quralyst-backend-dev` has `imageTagMutability: IMMUTABLE`. Since the pipeline was re-run on an existing commit (e.g. after a deploy failure or polling duplicate), CodeBuild tries to push the same `$COMMIT_SHA` tag again. Docker push fails because the tag already exists in ECR.
+- **Validation**:
+  - Image built successfully? Yes
+  - Tagged correctly? Yes
+  - Exists locally? Yes
+  - ECR exists? Yes
+  - ECR Auth successful? Yes
+  - CodeBuild IAM Permissions? Yes
+
+**Fix Applied:**
+Instead of disabling ECR immutability (which changes AWS resources), we modified `buildspec.yml` to gracefully check if the image already exists in ECR before pushing.
+```yaml
+      - aws ecr describe-images --repository-name $ECR_REPOSITORY_NAME --image-ids imageTag=$COMMIT_SHA > /dev/null 2>&1 || docker push "$IMAGE_URI:$COMMIT_SHA"
+```
+If the image exists, the `docker push` is skipped and the pipeline continues to CodeDeploy using the existing image.
 
 ---
 
