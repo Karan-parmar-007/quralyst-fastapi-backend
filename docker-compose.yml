@@ -29,7 +29,7 @@ services:
 
     # Load ALL env vars from the .env file — secrets stay out of this file.
     env_file:
-      - .env
+      - /opt/quralyst-backend/.env
 
     # Allow individual overrides at deploy time without rebuilding the image.
     environment:
